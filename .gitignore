@@ -1,0 +1,36 @@
+# Database and logs
+tracker.db
+tracker.log
+tracker_setup.log
+import_log.txt
+check_log.txt
+recall_log.txt
+
+# Screenshots
+static/screenshots/
+
+# Playwright marker
+.playwright_installed
+.tracker.pid
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.venv/
+
+# PyInstaller
+build/
+dist/
+*.manifest
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
