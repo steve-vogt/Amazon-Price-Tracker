@@ -448,10 +448,10 @@ LAYOUT_TPL = """
         .check-status{font-size:0.85em;padding:10px;margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);display:none;text-align:center}
         .check-status.show{display:block}.check-status.checking{color:var(--info);border-color:var(--info)}.check-status.success{color:var(--success);border-color:var(--success)}.check-status.error{color:var(--danger);border-color:var(--danger)}
         /* ─── Modals ─── */
-        .modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.88);backdrop-filter:blur(4px);z-index:1000;padding:20px;overflow:auto}
-        .modal.show{display:flex;align-items:center;justify-content:center}
+        .modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.88);backdrop-filter:blur(4px);z-index:1000;padding:20px;overflow-y:auto}
+        .modal.show{display:flex;align-items:flex-start;justify-content:center}
         .modal-close{position:fixed;top:15px;right:20px;font-size:2.5em;color:#fff;cursor:pointer;z-index:1001;line-height:1;opacity:0.7;transition:opacity 0.15s}.modal-close:hover{opacity:1}
-        .modal-content{max-width:1200px;margin:50px auto}
+        .modal-content{max-width:1200px;margin:40px auto;padding:20px}
         .modal-content img{max-width:100%;border:2px solid rgba(255,255,255,0.1);border-radius:var(--radius);margin-bottom:20px}
         .modal-content h3{color:#fff;margin-bottom:25px;font-size:1.3em}.modal-content h4{color:var(--accent);margin:25px 0 12px;font-size:1em}
         /* ─── Tooltips & Settings ─── */
@@ -498,7 +498,7 @@ LAYOUT_TPL = """
             <a href="/recalls" class="{{ 'active' if request.path == '/recalls' else '' }}">Recalls</a>
             <a href="/settings" class="{{ 'active' if request.path == '/settings' else '' }}">Settings</a>
             <a href="#" onclick="document.querySelector('footer').scrollIntoView({behavior:'smooth'});return false;" style="color:var(--accent);font-size:0.82em;">☕ Donate</a>
-            <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme',document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');localStorage.setItem('theme',document.documentElement.getAttribute('data-theme'))" title="Toggle theme">🌗</button>
+            <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme',document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');try{localStorage.setItem('theme',document.documentElement.getAttribute('data-theme'))}catch(e){}" title="Toggle theme">🌗</button>
         </div>
     </div>
     {% with messages = get_flashed_messages(with_categories=true) %}{% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}{% endwith %}
@@ -547,7 +547,7 @@ LAYOUT_TPL = """
     </footer>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded',()=>{const t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);document.querySelectorAll('.flash').forEach(f=>{setTimeout(()=>{f.style.transition='opacity 0.4s';f.style.opacity='0';setTimeout(()=>f.remove(),400)},6000)})});
+        document.addEventListener('DOMContentLoaded',()=>{try{const t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}document.querySelectorAll('.flash').forEach(f=>{setTimeout(()=>{f.style.transition='opacity 0.4s';f.style.opacity='0';setTimeout(()=>f.remove(),400)},6000)})});
         async function checkProduct(id,btn){
             const status=document.getElementById('status-'+id),orig=btn.innerHTML;
             btn.disabled=true;btn.innerHTML='<div class="loader"></div>';
@@ -611,7 +611,7 @@ LAYOUT_TPL = """
             btn.disabled=false;btn.innerHTML=orig;
         }
         async function dismissRecall(pid){
-            if(!confirm('Dismiss this recall permanently?\n\nYou will NOT be notified about this recall again.\nTo undo, click "Re-check" on the product card.'))return;
+            if(!confirm('Dismiss this recall permanently?\\n\\nYou will NOT be notified about this recall again.\\nTo undo, click Re-check on the product card.'))return;
             try{const r=await fetch('/api/dismiss-recall/'+pid,{method:'POST'});const d=await r.json();if(d.success)location.reload();}
             catch(e){alert('❌ '+e.message);}
         }
@@ -1709,33 +1709,52 @@ def scrape_with_requests(asin):
     """Lightweight scraper using requests + BeautifulSoup. No browser needed.
     Works in the EXE without any external installs. No screenshots."""
     result = {'new_price': None, 'used_price': None, 'title': None, 'screenshot_main': None, 'screenshot_offers': None, 'error': None}
-    headers = {
+    
+    session = requests.Session()
+    session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
-    }
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+    })
     
     try:
         # Main product page
         url = f"https://www.amazon.com/dp/{asin}"
         logger.info(f"[{asin}] Fetching main page (requests)...")
-        resp = requests.get(url, headers=headers, timeout=30)
+        resp = session.get(url, timeout=30, allow_redirects=True)
         resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        html = resp.text
+        soup = BeautifulSoup(html, 'html.parser')
         
         # Bot detection check
-        page_text = resp.text.lower()
-        if 'captcha' in page_text or ('robot' in page_text and 'are you a human' in page_text):
+        page_lower = html.lower()
+        if 'captcha' in page_lower or soup.select_one('#captchacharacters'):
             result['error'] = 'Amazon bot detection triggered (CAPTCHA). Try again later.'
+            return result
+        if len(html) < 5000 and 'robot' in page_lower:
+            result['error'] = 'Amazon returned a minimal page (possible block). Try again later.'
             return result
         
         # Title
         t = soup.select_one('#productTitle')
         if t: result['title'] = t.get_text().strip()[:TITLE_MAX_LENGTH]
         
-        # New price from main page
-        for sel in ['#corePrice_feature_div .a-offscreen', '.reinventPricePriceToPayMargin .a-offscreen', '#priceblock_ourprice', '#priceblock_dealprice', '#apex_offerDisplay_desktop .a-offscreen']:
+        # New price - try multiple selectors (Amazon changes these frequently)
+        price_selectors = [
+            '#corePrice_feature_div .a-offscreen',
+            '.reinventPricePriceToPayMargin .a-offscreen',
+            '#priceblock_ourprice',
+            '#priceblock_dealprice',
+            '#apex_offerDisplay_desktop .a-offscreen',
+            '.a-price .a-offscreen',
+            '#tp_price_block_total_price_ww .a-offscreen',
+            '#price_inside_buybox',
+            '#newBuyBoxPrice',
+        ]
+        for sel in price_selectors:
             el = soup.select_one(sel)
             if el:
                 pr = parse_price(el.get_text())
@@ -1743,15 +1762,28 @@ def scrape_with_requests(asin):
                     result['new_price'] = pr
                     break
         
+        # Regex fallback for new price if selectors missed
+        if not result['new_price']:
+            for pattern in [r'"priceAmount":\s*(\d+\.?\d*)', r'\$(\d{1,5}\.\d{2})\s*</span>']:
+                m = re.search(pattern, html)
+                if m:
+                    try:
+                        pr = float(m.group(1))
+                        if 0.50 <= pr <= 100000:
+                            result['new_price'] = pr
+                            break
+                    except: pass
+        
         # Offers page for used prices
         import time as _time
         _time.sleep(random.uniform(2, 4))  # Polite delay
         offers_url = f"https://www.amazon.com/gp/offer-listing/{asin}/ref=dp_olp_all_mbc?ie=UTF8&condition=all"
         logger.info(f"[{asin}] Fetching offers page (requests)...")
-        resp2 = requests.get(offers_url, headers=headers, timeout=30)
+        resp2 = session.get(offers_url, timeout=30, allow_redirects=True)
         
         if resp2.status_code == 200:
-            offers_soup = BeautifulSoup(resp2.text, 'html.parser')
+            offers_html = resp2.text
+            offers_soup = BeautifulSoup(offers_html, 'html.parser')
             used_prices = []
             new_prices_from_offers = []
             
@@ -1783,7 +1815,7 @@ def scrape_with_requests(asin):
             
             # Regex fallback for used prices
             for pattern in [r'Used\s*\([^)]*\)\s*from\s*\$(\d+\.\d{2})', r'Used\s+from\s+\$(\d+\.\d{2})']:
-                for match in re.findall(pattern, resp2.text, re.I):
+                for match in re.findall(pattern, offers_html, re.I):
                     price_str = match[-1] if isinstance(match, tuple) else match
                     try:
                         pr = float(price_str)
@@ -1798,6 +1830,10 @@ def scrape_with_requests(asin):
             if used_prices:
                 result['used_price'] = min(used_prices)
     
+    except requests.exceptions.Timeout:
+        result['error'] = 'Request timed out. Amazon may be slow or blocking.'
+    except requests.exceptions.ConnectionError:
+        result['error'] = 'Connection failed. Check your internet.'
     except Exception as e:
         result['error'] = str(e)
         logger.error(f"[{asin}] Requests scraper error: {e}")
@@ -2344,7 +2380,8 @@ def apply_recall_to_product(product, recall_data):
 
 app = Flask(__name__)
 # Generate and persist a secret key for session security
-_secret_key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.flask_secret')
+_app_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+_secret_key_file = os.path.join(_app_dir, '.flask_secret')
 if os.path.exists(_secret_key_file):
     with open(_secret_key_file, 'r') as f: app.secret_key = f.read().strip()
 else:
@@ -2571,7 +2608,7 @@ def api_check(pid):
             log(f"CHECK TIMEOUT: {asin} after {SCRAPE_TIMEOUT}s")
             return jsonify({'success': False, 'error': f'Timeout after {SCRAPE_TIMEOUT}s'})
         
-        if data.get('error'): 
+        if data.get('error') and not data.get('new_price') and not data.get('used_price'):
             log(f"CHECK ERROR: {asin} - {data['error']}")
             return jsonify({'success': False, 'error': data['error']})
         
@@ -3340,6 +3377,12 @@ def run_console():
     except KeyboardInterrupt: pass
 
 if __name__ == "__main__":
+    # Ensure working directory is the EXE/script location (not system32 or wherever Windows launches from)
+    if getattr(sys, 'frozen', False):
+        os.chdir(os.path.dirname(sys.executable))
+    else:
+        os.chdir(os.path.dirname(os.path.abspath(__file__)) or os.getcwd())
+    
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     ensure_single_instance()
