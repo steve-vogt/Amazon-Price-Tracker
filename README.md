@@ -87,6 +87,21 @@ Your EXE appears in `dist/AmazonPriceTracker.exe`.
 
 The app auto-installs all Python dependencies on first run. No manual pip commands needed.
 
+## 💝 Support
+
+If this tool saves you money, consider buying me a coffee!
+
+[![Cash App](https://img.shields.io/badge/Cash_App-$SteveVogt-00D632?style=for-the-badge)](https://cash.app/$SteveVogt)
+[![PayPal](https://img.shields.io/badge/PayPal-SteveVogt-0070BA?style=for-the-badge)](https://paypal.me/SteveVogt)
+[![Venmo](https://img.shields.io/badge/Venmo-SteveVogt-008CFF?style=for-the-badge)](https://venmo.com/u/SteveVogt)
+
+<details>
+<summary>Bitcoin</summary>
+
+`bc1qpdex8jrvyj3lh7q56av2k53nrh7u63s6t65uer`
+
+</details>
+
 ## License
 
 Personal use. Not affiliated with Amazon.
